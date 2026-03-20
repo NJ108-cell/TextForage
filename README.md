@@ -1,4 +1,5 @@
 # TextForge ✦
+# LINK : https://claude.ai/public/artifacts/be40e390-ce38-44e4-9e8c-109b95d7e83c
 
 > An all-in-one AI writing cleanup suite — detect, remove, rewrite, and paraphrase.
 
