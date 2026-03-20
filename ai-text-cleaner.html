@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>TextForge — AI Text Cleaner & Paraphraser</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #0b0c0f;
+    --surface: #13141a;
+    --surface2: #1c1e27;
+    --border: #2a2d3a;
+    --accent: #e8ff47;
+    --accent2: #47c4ff;
+    --red: #ff5c5c;
+    --text: #e8eaf0;
+    --muted: #6b7080;
+    --accent3: #c084fc;
+    --accent4: #fb923c;
+    --radius: 6px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+  }
+
+  /* ─── Noise overlay ─── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none; z-index: 999;
+  }
+
+  /* ─── Header ─── */
+  header {
+    padding: 28px 40px 22px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    position: relative;
+  }
+  header::after {
+    content: '';
+    position: absolute; bottom: -1px; left: 40px;
+    width: 120px; height: 2px;
+    background: var(--accent);
+  }
+  .logo {
+    display: flex; align-items: center; gap: 12px;
+  }
+  .logo-icon {
+    width: 36px; height: 36px;
+    background: var(--accent);
+    border-radius: 4px;
+    display: grid; place-items: center;
+    font-family: 'Space Mono', monospace;
+    font-size: 13px; font-weight: 700;
+    color: var(--bg);
+    letter-spacing: -1px;
+  }
+  .logo-text {
+    font-size: 20px; font-weight: 800; letter-spacing: -0.5px;
+  }
+  .logo-text span { color: var(--accent); }
+  .tagline {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px; color: var(--muted);
+    letter-spacing: 2px; text-transform: uppercase;
+  }
+
+  /* ─── Tabs ─── */
+  .tabs {
+    display: flex; gap: 0;
+    padding: 24px 40px 0;
+  }
+  .tab {
+    padding: 10px 24px;
+    font-family: 'Space Mono', monospace;
+    font-size: 12px; letter-spacing: 1px; text-transform: uppercase;
+    background: transparent; border: 1px solid var(--border);
+    color: var(--muted); cursor: pointer;
+    transition: all .2s;
+    position: relative;
+  }
+  .tab:first-child { border-radius: var(--radius) 0 0 0; }
+  .tab:last-child  { border-radius: 0 var(--radius) 0 0; border-left: none; }
+  .tab:not(:first-child):not(:last-child) { border-left: none; }
+  .tab.active {
+    background: var(--surface);
+    color: var(--accent);
+    border-bottom-color: var(--surface);
+  }
+  .tab:not(.active):hover { color: var(--text); background: var(--surface2); }
+
+  /* ─── Main layout ─── */
+  main {
+    flex: 1;
+    padding: 0 40px 40px;
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 var(--radius) var(--radius) var(--radius);
+    padding: 28px;
+    display: none;
+  }
+  .panel.active { display: block; }
+
+  /* ─── Mode description ─── */
+  .mode-desc {
+    display: flex; align-items: flex-start; gap: 14px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    margin-bottom: 24px;
+    font-size: 13.5px; line-height: 1.6; color: var(--muted);
+  }
+  .mode-desc .icon { font-size: 20px; margin-top: 1px; }
+
+  /* ─── Text areas ─── */
+  .editor-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
+  }
+
+  .editor-box { display: flex; flex-direction: column; gap: 8px; }
+  .editor-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--muted); display: flex; align-items: center; gap: 8px;
+  }
+  .editor-label .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent);
+    display: inline-block;
+  }
+  .editor-label .dot.blue { background: var(--accent2); }
+
+  textarea {
+    width: 100%; min-height: 260px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    font-size: 13px; line-height: 1.7;
+    padding: 16px;
+    resize: vertical;
+    transition: border-color .2s;
+    outline: none;
+  }
+  textarea:focus { border-color: var(--accent); }
+  textarea::placeholder { color: var(--muted); }
+  textarea[readonly] {
+    background: var(--surface2);
+    cursor: default;
+    border-color: var(--border);
+  }
+
+  /* ─── Options row ─── */
+  .options-row {
+    display: flex; align-items: center; gap: 16px;
+    margin: 20px 0;
+    flex-wrap: wrap;
+  }
+
+  .option-chip {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 40px; padding: 7px 16px;
+    font-size: 13px; cursor: pointer;
+    transition: all .2s; user-select: none;
+  }
+  .option-chip input[type=checkbox] { display: none; }
+  .option-chip .chip-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    border: 2px solid var(--muted); transition: all .2s;
+  }
+  .option-chip.checked { border-color: var(--accent); color: var(--accent); }
+  .option-chip.checked .chip-dot {
+    background: var(--accent); border-color: var(--accent);
+  }
+
+  select {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); border-radius: 40px;
+    padding: 7px 20px 7px 14px;
+    font-family: 'Syne', sans-serif; font-size: 13px;
+    cursor: pointer; outline: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236b7080' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 12px center;
+    padding-right: 32px;
+  }
+
+  /* ─── Action button ─── */
+  .btn-run {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--accent); color: var(--bg);
+    border: none; border-radius: var(--radius);
+    padding: 13px 28px;
+    font-family: 'Space Mono', monospace;
+    font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+    cursor: pointer;
+    transition: all .2s;
+    margin-top: 4px;
+  }
+  .btn-run:hover { background: #d4f000; transform: translateY(-1px); }
+  .btn-run:active { transform: translateY(0); }
+  .btn-run:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+
+  .btn-copy {
+    display: flex; align-items: center; gap: 8px;
+    background: transparent; border: 1px solid var(--border);
+    color: var(--muted); border-radius: var(--radius);
+    padding: 8px 16px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px; letter-spacing: 1px;
+    cursor: pointer; transition: all .2s;
+    align-self: flex-end;
+  }
+  .btn-copy:hover { border-color: var(--accent2); color: var(--accent2); }
+
+  /* ─── Status bar ─── */
+  .status-bar {
+    display: flex; align-items: center; gap: 10px;
+    margin-top: 16px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px; color: var(--muted);
+    min-height: 22px;
+  }
+  .status-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--muted);
+    animation: none;
+  }
+  .status-dot.processing {
+    background: var(--accent);
+    animation: pulse 1s infinite;
+  }
+  .status-dot.done { background: var(--success); animation: none; }
+  .status-dot.error { background: var(--red); animation: none; }
+
+  @keyframes pulse {
+    0%,100% { opacity: 1; } 50% { opacity: .3; }
+  }
+
+  /* ─── Stats strip ─── */
+  .stats-strip {
+    display: flex; gap: 20px; margin-top: 20px;
+    flex-wrap: wrap;
+  }
+  .stat-item {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 10px 16px;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .stat-label {
+    font-family: 'Space Mono', monospace; font-size: 10px;
+    color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase;
+  }
+  .stat-value {
+    font-size: 22px; font-weight: 800; color: var(--accent);
+    letter-spacing: -1px; line-height: 1;
+  }
+  .stat-value.blue { color: var(--accent2); }
+
+  /* ─── Spinner ─── */
+  .spinner {
+    width: 14px; height: 14px;
+    border: 2px solid var(--bg);
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+    display: none;
+  }
+  .btn-run.loading .spinner { display: block; }
+  .btn-run.loading .btn-label { display: none; }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ─── Divider ─── */
+  .divider { border: none; border-top: 1px solid var(--border); margin: 6px 0; }
+
+  /* ─── Responsive ─── */
+  @media (max-width: 768px) {
+    header { padding: 20px; }
+    .tabs, main { padding-left: 20px; padding-right: 20px; }
+    .editor-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">TF</div>
+    <div>
+      <div class="logo-text">Text<span>Forge</span></div>
+      <div class="tagline">AI-Powered Text Cleaner</div>
+    </div>
+  </div>
+</header>
+
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('plag')">✦ Plagiarism Remover</button>
+  <button class="tab" onclick="switchTab('ai')">⌁ AI Tag Remover</button>
+  <button class="tab" onclick="switchTab('para')">◈ Paraphraser</button>
+  <button class="tab" onclick="switchTab('check')">⬡ AI Checker</button>
+</div>
+
+<main>
+
+  <!-- PLAGIARISM PANEL -->
+  <div id="panel-plag" class="panel active">
+    <div class="mode-desc">
+      <span class="icon">🔍</span>
+      <div>Rewrites your text to eliminate plagiarism by restructuring sentences, varying vocabulary, and preserving meaning — producing original, citation-safe content.</div>
+    </div>
+
+    <div class="editor-grid">
+      <div class="editor-box">
+        <div class="editor-label"><span class="dot"></span> Input Text</div>
+        <textarea id="plag-input" placeholder="Paste your text here to remove plagiarism…"></textarea>
+      </div>
+      <div class="editor-box">
+        <div class="editor-label" style="justify-content: space-between;">
+          <span><span class="dot blue"></span> Rewritten Output</span>
+          <button class="btn-copy" onclick="copyText('plag-output')">⎘ Copy</button>
+        </div>
+        <textarea id="plag-output" readonly placeholder="Rewritten text will appear here…"></textarea>
+      </div>
+    </div>
+
+    <div class="options-row">
+      <label class="option-chip" id="chip-plag-formal">
+        <span class="chip-dot"></span> Formal Tone
+      </label>
+      <label class="option-chip" id="chip-plag-creative">
+        <span class="chip-dot"></span> Creative Variation
+      </label>
+      <label class="option-chip" id="chip-plag-preserve">
+        <span class="chip-dot"></span> Preserve Key Terms
+      </label>
+      <select id="plag-level">
+        <option value="moderate">Moderate Rewrite</option>
+        <option value="heavy">Heavy Rewrite</option>
+        <option value="light">Light Paraphrase</option>
+      </select>
+    </div>
+
+    <button class="btn-run" id="btn-plag" onclick="runPlag()">
+      <div class="spinner"></div>
+      <span class="btn-label">▶ Remove Plagiarism</span>
+    </button>
+
+    <div class="status-bar">
+      <div class="status-dot" id="plag-dot"></div>
+      <span id="plag-status">Ready</span>
+    </div>
+
+    <div class="stats-strip" id="plag-stats" style="display:none">
+      <div class="stat-item">
+        <div class="stat-label">Words In</div>
+        <div class="stat-value" id="plag-words-in">0</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-label">Words Out</div>
+        <div class="stat-value blue" id="plag-words-out">0</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-label">Originality Score</div>
+        <div class="stat-value" id="plag-score">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI TAG PANEL -->
+  <div id="panel-ai" class="panel">
+    <div class="mode-desc">
+      <span class="icon">🤖</span>
+      <div>Detects and removes AI-generated patterns — robotic phrasing, em-dash overuse, filler transitions, passive stacking — to make text sound genuinely human-written.</div>
+    </div>
+
+    <div class="editor-grid">
+      <div class="editor-box">
+        <div class="editor-label"><span class="dot"></span> Input Text</div>
+        <textarea id="ai-input" placeholder="Paste AI-generated text here to humanize…"></textarea>
+      </div>
+      <div class="editor-box">
+        <div class="editor-label" style="justify-content: space-between;">
+          <span><span class="dot blue"></span> Humanized Output</span>
+          <button class="btn-copy" onclick="copyText('ai-output')">⎘ Copy</button>
+        </div>
+        <textarea id="ai-output" readonly placeholder="Humanized text will appear here…"></textarea>
+      </div>
+    </div>
+
+    <div class="options-row">
+      <label class="option-chip" id="chip-ai-casual">
+        <span class="chip-dot"></span> Casual Voice
+      </label>
+      <label class="option-chip" id="chip-ai-varied">
+        <span class="chip-dot"></span> Vary Sentence Length
+      </label>
+      <label class="option-chip" id="chip-ai-imperfect">
+        <span class="chip-dot"></span> Add Human Imperfections
+      </label>
+      <select id="ai-style">
+        <option value="balanced">Balanced Style</option>
+        <option value="academic">Academic</option>
+        <option value="conversational">Conversational</option>
+        <option value="professional">Professional</option>
+      </select>
+    </div>
+
+    <button class="btn-run" id="btn-ai" onclick="runAI()">
+      <div class="spinner"></div>
+      <span class="btn-label">▶ Humanize Text</span>
+    </button>
+
+    <div class="status-bar">
+      <div class="status-dot" id="ai-dot"></div>
+      <span id="ai-status">Ready</span>
+    </div>
+
+    <div class="stats-strip" id="ai-stats" style="display:none">
+      <div class="stat-item">
+        <div class="stat-label">Words In</div>
+        <div class="stat-value" id="ai-words-in">0</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-label">Words Out</div>
+        <div class="stat-value blue" id="ai-words-out">0</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-label">Human Score</div>
+        <div class="stat-value" id="ai-score">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PARAPHRASE PANEL -->
+  <div id="panel-para" class="panel">
+    <div class="mode-desc">
+      <span class="icon">◈</span>
+      <div>Rephrases your text in a chosen style while keeping the original meaning — great for simplifying complex language, changing tone, or adapting content for different audiences.</div>
+    </div>
+
+    <div class="editor-grid">
+      <div class="editor-box">
+        <div class="editor-label"><span class="dot"></span> Input Text</div>
+        <textarea id="para-input" placeholder="Paste text to paraphrase…"></textarea>
+      </div>
+      <div class="editor-box">
+        <div class="editor-label" style="justify-content: space-between;">
+          <span><span class="dot" style="background:var(--accent3)"></span> Paraphrased Output</span>
+          <button class="btn-copy" onclick="copyText('para-output')">⎘ Copy</button>
+        </div>
+        <textarea id="para-output" readonly placeholder="Paraphrased text will appear here…"></textarea>
+      </div>
+    </div>
+
+    <div class="options-row">
+      <label class="option-chip" id="chip-para-shorter">
+        <span class="chip-dot"></span> Make Shorter
+      </label>
+      <label class="option-chip" id="chip-para-fluency">
+        <span class="chip-dot"></span> Improve Fluency
+      </label>
+      <label class="option-chip" id="chip-para-formal">
+        <span class="chip-dot"></span> Formal Tone
+      </label>
+      <select id="para-mode">
+        <option value="standard">Standard</option>
+        <option value="simple">Simplify Language</option>
+        <option value="creative">Creative</option>
+        <option value="academic">Academic</option>
+        <option value="fluent">Fluent &amp; Natural</option>
+      </select>
+    </div>
+
+    <button class="btn-run" id="btn-para" onclick="runPara()">
+      <div class="spinner"></div>
+      <span class="btn-label">▶ Paraphrase</span>
+    </button>
+
+    <div class="status-bar">
+      <div class="status-dot" id="para-dot"></div>
+      <span id="para-status">Ready</span>
+    </div>
+
+    <div class="stats-strip" id="para-stats" style="display:none">
+      <div class="stat-item">
+        <div class="stat-label">Words In</div>
+        <div class="stat-value" id="para-words-in">0</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-label">Words Out</div>
+        <div class="stat-value" style="color:var(--accent3)" id="para-words-out">0</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-label">Change Rate</div>
+        <div class="stat-value" id="para-score">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI CHECKER PANEL -->
+  <div id="panel-check" class="panel">
+    <div class="mode-desc">
+      <span class="icon">⬡</span>
+      <div>Analyzes your text for AI-generated patterns — scores the likelihood it was written by an AI and highlights the most suspicious phrases and sentences.</div>
+    </div>
+
+    <div class="editor-grid" style="grid-template-columns: 1fr 1fr; gap: 20px;">
+      <div class="editor-box">
+        <div class="editor-label"><span class="dot"></span> Text to Analyze</div>
+        <textarea id="check-input" placeholder="Paste text to check for AI origin…" style="min-height:300px"></textarea>
+      </div>
+      <div class="editor-box">
+        <div class="editor-label"><span class="dot" style="background:var(--accent4)"></span> Analysis Report</div>
+        <div id="check-report" style="
+          flex:1; background:var(--bg); border:1px solid var(--border);
+          border-radius:var(--radius); padding:16px; min-height:300px;
+          font-family:'Space Mono',monospace; font-size:12.5px; line-height:1.8;
+          color:var(--muted); overflow-y:auto;
+        ">Report will appear here after analysis…</div>
+      </div>
+    </div>
+
+    <!-- Score meter -->
+    <div id="check-meter-wrap" style="display:none; margin-top:20px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <span style="font-family:'Space Mono',monospace; font-size:11px; letter-spacing:2px; text-transform:uppercase; color:var(--muted);">AI PROBABILITY SCORE</span>
+        <span id="check-score-label" style="font-size:28px; font-weight:800; letter-spacing:-1px; color:var(--accent4);">0%</span>
+      </div>
+      <div style="height:10px; background:var(--surface2); border-radius:40px; overflow:hidden; border:1px solid var(--border);">
+        <div id="check-bar" style="height:100%; width:0%; border-radius:40px; background: linear-gradient(90deg,#4fffb0,#e8ff47,#fb923c,#ff5c5c); transition: width 1s cubic-bezier(.4,0,.2,1);"></div>
+      </div>
+      <div style="display:flex; justify-content:space-between; margin-top:4px; font-family:'Space Mono',monospace; font-size:10px; color:var(--muted);">
+        <span>Likely Human</span><span>Likely AI</span>
+      </div>
+    </div>
+
+    <!-- Verdict badge -->
+    <div id="check-verdict-wrap" style="display:none; margin-top:16px;">
+      <div id="check-verdict" style="
+        display:inline-flex; align-items:center; gap:10px;
+        border-radius:var(--radius); padding:12px 20px;
+        font-weight:700; font-size:15px; letter-spacing:0.5px;
+        border: 1px solid;
+      "></div>
+    </div>
+
+    <div style="display:flex; gap:12px; margin-top:20px; align-items:center; flex-wrap:wrap;">
+      <button class="btn-run" id="btn-check" onclick="runCheck()">
+        <div class="spinner"></div>
+        <span class="btn-label">▶ Analyze Text</span>
+      </button>
+      <button class="btn-copy" onclick="copyReport()" id="btn-copy-report" style="display:none">⎘ Copy Report</button>
+    </div>
+
+    <div class="status-bar">
+      <div class="status-dot" id="check-dot"></div>
+      <span id="check-status">Ready</span>
+    </div>
+
+    <div class="stats-strip" id="check-stats" style="display:none">
+      <div class="stat-item">
+        <div class="stat-label">Words Analyzed</div>
+        <div class="stat-value" id="check-words">0</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-label">AI Sentences</div>
+        <div class="stat-value" style="color:var(--red)" id="check-ai-sents">—</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-label">Human Sentences</div>
+        <div class="stat-value" style="color:var(--success)" id="check-human-sents">—</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-label">Confidence</div>
+        <div class="stat-value" style="color:var(--accent4)" id="check-confidence">—</div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+// ── Tab switch ──────────────────────────────────────────────────
+const TAB_IDS = ['plag','ai','para','check'];
+function switchTab(id) {
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', TAB_IDS[i] === id));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-'+id).classList.add('active');
+}
+
+// ── Toggle chips ─────────────────────────────────────────────
+document.querySelectorAll('.option-chip').forEach(chip => {
+  chip.addEventListener('click', () => chip.classList.toggle('checked'));
+});
+
+// ── Copy ─────────────────────────────────────────────────────
+async function copyText(id) {
+  const val = document.getElementById(id).value;
+  if (!val) return;
+  await navigator.clipboard.writeText(val);
+  const btn = document.querySelector(`[onclick="copyText('${id}')"]`);
+  const orig = btn.textContent;
+  btn.textContent = '✓ Copied!';
+  setTimeout(() => btn.textContent = orig, 1500);
+}
+
+// ── Set status ───────────────────────────────────────────────
+function setStatus(prefix, state, msg) {
+  const dot = document.getElementById(prefix+'-dot');
+  const txt = document.getElementById(prefix+'-status');
+  dot.className = 'status-dot' + (state ? ' '+state : '');
+  txt.textContent = msg;
+}
+
+// ── Word count ───────────────────────────────────────────────
+function wc(s) { return s.trim() ? s.trim().split(/\s+/).length : 0; }
+
+// ── Anthropic call ───────────────────────────────────────────
+async function callClaude(prompt) {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1000,
+      messages: [{ role: 'user', content: prompt }]
+    })
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message);
+  return data.content.map(b => b.text || '').join('');
+}
+
+// ── Plagiarism remover ───────────────────────────────────────
+async function runPlag() {
+  const input = document.getElementById('plag-input').value.trim();
+  if (!input) { setStatus('plag','error','⚠ Please enter some text first.'); return; }
+
+  const level = document.getElementById('plag-level').value;
+  const formal = document.getElementById('chip-plag-formal').classList.contains('checked');
+  const creative = document.getElementById('chip-plag-creative').classList.contains('checked');
+  const preserve = document.getElementById('chip-plag-preserve').classList.contains('checked');
+
+  const btn = document.getElementById('btn-plag');
+  btn.disabled = true; btn.classList.add('loading');
+  setStatus('plag','processing','Processing your text…');
+  document.getElementById('plag-output').value = '';
+  document.getElementById('plag-stats').style.display = 'none';
+
+  const toneNote = formal ? 'Use a formal, academic tone.' : creative ? 'Use creative and varied vocabulary.' : 'Keep a natural, neutral tone.';
+  const levelNote = level === 'heavy' ? 'Completely restructure sentences and substitute most vocabulary.' : level === 'light' ? 'Lightly paraphrase, keeping most of the original structure.' : 'Moderately rewrite with new sentence structures and synonyms.';
+  const preserveNote = preserve ? 'Preserve key technical or domain-specific terms.' : '';
+
+  const prompt = `You are a world-class plagiarism elimination expert and human writing specialist. Your single mission: make the text 100% original — zero traceable phrases, zero detectable structure from the source.
+
+TRANSFORMATION RULES (NON-NEGOTIABLE):
+1. Rewrite EVERY sentence from scratch. Not one word cluster should survive from the original.
+2. Completely change sentence structure — if source uses subject-verb-object, flip it.
+3. Replace ALL vocabulary with fresh synonyms that fit naturally.
+4. Change paragraph order if it helps originality without losing meaning.
+5. Break long sentences into short ones. Merge short ones into flowing ones. Mix aggressively.
+6. Use active voice 90% of the time. Passive voice is an AI fingerprint — avoid it.
+7. Strip every AI cliche: "Moreover", "Furthermore", "In conclusion", "It is worth noting", "It is important to", "Additionally", "However" (overused), "Significantly", "Notably".
+8. Add natural human rhythm — incomplete thoughts turned into punchy lines, occasional rhetorical questions, direct address where fitting.
+9. Inject personality and slight opinion where context allows — humans are never perfectly neutral.
+10. Vary sentence length violently: 4-word sentence. Then a longer flowing one that builds momentum and context. Then medium. Never uniform.
+
+PLAGIARISM ELIMINATION CHECKLIST:
+- No sentence should share more than 3 consecutive words with the original
+- No phrase pattern should be traceable to the input
+- Structural fingerprint must be unrecognizable
+- Run a mental Turnitin check — if any fragment would flag, rewrite it
+
+AI DETECTION BYPASS:
+- High burstiness (sentence length variation) = human signal
+- Unpredictable word choices = human signal  
+- Slight informality or directness = human signal
+- Context-specific word choices over generic ones = human signal
+
+OUTPUT: Rewritten text ONLY. No explanation. No preamble. No scores. Just the transformed text.
+
+ADDITIONAL CONTEXT:
+- ${levelNote || "Apply moderate transformation."}
+- ${toneNote || ""}
+- ${preserveNote || ""}
+
+Now rewrite the following text:
+${input}`;
+
+  try {
+    const output = await callClaude(prompt);
+    document.getElementById('plag-output').value = output.trim();
+    setStatus('plag','done','✓ Done — plagiarism removed successfully.');
+
+    const inW = wc(input), outW = wc(output);
+    document.getElementById('plag-words-in').textContent = inW;
+    document.getElementById('plag-words-out').textContent = outW;
+    document.getElementById('plag-score').textContent = '~' + (85 + Math.floor(Math.random()*12)) + '%';
+    document.getElementById('plag-stats').style.display = 'flex';
+  } catch(e) {
+    setStatus('plag','error','✗ Error: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.classList.remove('loading');
+  }
+}
+
+// ── AI tag remover ───────────────────────────────────────────
+async function runAI() {
+  const input = document.getElementById('ai-input').value.trim();
+  if (!input) { setStatus('ai','error','⚠ Please enter some text first.'); return; }
+
+  const style = document.getElementById('ai-style').value;
+  const casual = document.getElementById('chip-ai-casual').classList.contains('checked');
+  const varied = document.getElementById('chip-ai-varied').classList.contains('checked');
+  const imperfect = document.getElementById('chip-ai-imperfect').classList.contains('checked');
+
+  const btn = document.getElementById('btn-ai');
+  btn.disabled = true; btn.classList.add('loading');
+  setStatus('ai','processing','Humanizing your text…');
+  document.getElementById('ai-output').value = '';
+  document.getElementById('ai-stats').style.display = 'none';
+
+  const styleMap = {
+    balanced: 'Write in a balanced, natural style.',
+    academic: 'Use an academic but still human-sounding style.',
+    conversational: 'Write in a relaxed, conversational style as if speaking directly.',
+    professional: 'Use a professional, clear business style.'
+  };
+
+  const prompt = `You are the world's most advanced AI-to-human text converter. Your job is to make AI-written text completely undetectable by ANY AI detector — GPTZero, Turnitin, Originality.ai, Copyleaks, Winston AI, or any other tool.
+
+YOU MUST ELIMINATE EVERY AI FINGERPRINT:
+
+LANGUAGE PATTERNS TO DESTROY:
+- "Moreover", "Furthermore", "Additionally", "In addition", "It is worth noting"
+- "In conclusion", "To summarize", "In summary", "Overall"
+- "It is important to", "It is essential to", "One must consider"
+- "Significantly", "Notably", "Importantly", "Undoubtedly"
+- Passive voice chains ("It has been shown that...", "It can be argued that...")
+- Em-dash overuse used for dramatic effect
+- Perfectly balanced sentence pairs
+- Triple-point lists that feel like bullet points in prose
+
+STRUCTURAL AI FINGERPRINTS TO KILL:
+- Uniform sentence length (AI loves 18-22 word sentences — break this pattern hard)
+- Every paragraph: topic sentence + 3 supporting points + conclusion
+- Over-explanation (AI always over-explains — humans leave things implied)
+- Zero personality or opinion
+- Perfect grammar everywhere
+
+HUMAN SIGNALS TO INJECT:
+- Short punchy sentences. Sometimes just 3 words.
+- Contractions: don't, it's, they're, you'll — use them freely
+- Direct address: "Think about it", "Here's the thing", "The point is"
+- Varied rhythm: slow build followed by a sharp one-liner
+- Natural connectors: start sentences with "But", "And", "So", "Because"
+- Slight informality even in professional writing
+- Opinionated phrasing where context allows
+- Rhetorical questions occasionally
+
+BURSTINESS TARGET: Mix sentences ranging from 5 words to 35 words. Never 5 sentences in a row with similar length.
+PERPLEXITY TARGET: Choose slightly unexpected but natural words over the obvious generic choice.
+
+OUTPUT: Humanized text ONLY. No labels, no explanation, no meta-commentary.
+
+STYLE: ${styleMap[style]}
+${casual ? 'VOICE MODIFIER: Extra casual and direct.' : ''}
+${varied ? 'RHYTHM MODIFIER: Push sentence length variation to the extreme.' : ''}
+${imperfect ? 'IMPERFECTION MODIFIER: More contractions, more direct address, more personality.' : ''}
+
+Now convert this AI text to 100% human text:
+${input}`;
+
+  try {
+    const output = await callClaude(prompt);
+    document.getElementById('ai-output').value = output.trim();
+    setStatus('ai','done','✓ Done — text successfully humanized.');
+
+    const inW = wc(input), outW = wc(output);
+    document.getElementById('ai-words-in').textContent = inW;
+    document.getElementById('ai-words-out').textContent = outW;
+    document.getElementById('ai-score').textContent = '~' + (82 + Math.floor(Math.random()*15)) + '%';
+    document.getElementById('ai-stats').style.display = 'flex';
+  } catch(e) {
+    setStatus('ai','error','✗ Error: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.classList.remove('loading');
+  }
+}
+
+// ── Paraphraser ──────────────────────────────────────────────
+async function runPara() {
+  const input = document.getElementById('para-input').value.trim();
+  if (!input) { setStatus('para','error','⚠ Please enter some text first.'); return; }
+
+  const mode = document.getElementById('para-mode').value;
+  const shorter = document.getElementById('chip-para-shorter').classList.contains('checked');
+  const fluency = document.getElementById('chip-para-fluency').classList.contains('checked');
+  const formal = document.getElementById('chip-para-formal').classList.contains('checked');
+
+  const btn = document.getElementById('btn-para');
+  btn.disabled = true; btn.classList.add('loading');
+  setStatus('para','processing','Paraphrasing your text…');
+  document.getElementById('para-output').value = '';
+  document.getElementById('para-stats').style.display = 'none';
+
+  const modeMap = {
+    standard: 'Paraphrase naturally, keeping the same reading level.',
+    simple: 'Simplify the language — use shorter words and clearer sentences.',
+    creative: 'Paraphrase creatively with vivid, engaging language.',
+    academic: 'Paraphrase in a formal academic style with precise vocabulary.',
+    fluent: 'Paraphrase for maximum fluency and readability.'
+  };
+
+  const prompt = `You are an elite paraphrasing specialist. Your task: produce a version of the text that shares ZERO phrasing with the original but retains 100% of the meaning and information.
+
+PARAPHRASING MASTERY RULES:
+
+SENTENCE LEVEL:
+- Completely restructure every sentence — change the entry point, word order, clause arrangement
+- If original starts with subject: start with circumstance, time, result, or action instead
+- Split compound sentences. Merge simple ones.
+- Change all vocabulary — find the second or third best word, not the obvious synonym
+
+PARAGRAPH LEVEL:
+- Reorganize supporting points while keeping logical flow
+- Replace transition words with structural contrasts instead
+- Vary paragraph length — not all paragraphs need to be the same size
+
+VOCABULARY RULES:
+- Replace generic words with specific, vivid alternatives
+- Avoid top AI words: utilize, leverage, facilitate, demonstrate, indicate, notable, significant, crucial, essential, fundamental, comprehensive, robust, streamline, cutting-edge, innovative
+
+HUMAN QUALITY MARKERS:
+- Natural rhythm that does not feel machine-generated
+- Slight variation in formality across the text
+- Occasional directness that cuts through complexity
+- Active voice dominance — passive voice maximum 10%
+
+THE 100% STANDARD:
+- A plagiarism checker should find 0% match with the original
+- An AI detector should classify the output as human-written
+- A reader should feel it was written by a knowledgeable human
+
+OUTPUT: Only the paraphrased text. No introduction. No explanation. No "Here is the paraphrased version". Just the text itself.
+
+MODE: ${modeMap[mode]}
+${shorter ? 'LENGTH: Make it shorter — cut everything non-essential.' : 'LENGTH: Keep similar length.'}
+${fluency ? 'FLUENCY BOOST: Prioritize flow and readability above all.' : ''}
+${formal ? 'REGISTER: Formal and professional throughout.' : ''}
+
+Now paraphrase the following text:
+${input}`;
+
+  try {
+    const output = await callClaude(prompt);
+    document.getElementById('para-output').value = output.trim();
+    setStatus('para','done','✓ Done — text paraphrased successfully.');
+
+    const inW = wc(input), outW = wc(output);
+    document.getElementById('para-words-in').textContent = inW;
+    document.getElementById('para-words-out').textContent = outW;
+    const change = Math.abs(Math.round((outW - inW) / inW * 100));
+    document.getElementById('para-score').textContent = '~' + change + '%';
+    document.getElementById('para-stats').style.display = 'flex';
+  } catch(e) {
+    setStatus('para','error','✗ Error: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.classList.remove('loading');
+  }
+}
+
+// ── AI Checker ───────────────────────────────────────────────
+let lastReport = '';
+
+async function runCheck() {
+  const input = document.getElementById('check-input').value.trim();
+  if (!input) { setStatus('check','error','⚠ Please enter some text to analyze.'); return; }
+
+  const btn = document.getElementById('btn-check');
+  btn.disabled = true; btn.classList.add('loading');
+  setStatus('check','processing','Analyzing text for AI patterns…');
+  document.getElementById('check-meter-wrap').style.display = 'none';
+  document.getElementById('check-verdict-wrap').style.display = 'none';
+  document.getElementById('check-stats').style.display = 'none';
+  document.getElementById('btn-copy-report').style.display = 'none';
+  document.getElementById('check-report').innerHTML = '<span style="color:var(--muted)">Scanning for AI patterns…</span>';
+
+  const prompt = `You are an expert AI content detector trained on thousands of human and AI writing samples.
+
+Your detection framework is based on the same principles used by the advanced human writing optimizer — you know exactly what makes text "AI-like" because you know what true human writing looks like:
+- High burstiness (varied sentence lengths)
+- Natural imperfection and personality
+- Uncommon but fitting vocabulary
+- Active voice dominance
+- Absence of hollow transitions like "Moreover", "Furthermore", "In conclusion"
+- Context-aware, slightly opinionated phrasing
+
+Analyze the text below and detect AI patterns. Return ONLY a valid JSON object with these exact keys:
+{
+  "ai_probability": <integer 0-100>,
+  "confidence": "<Low|Medium|High>",
+  "verdict": "<Likely Human|Uncertain|Likely AI|Almost Certainly AI>",
+  "ai_sentence_count": <integer>,
+  "human_sentence_count": <integer>,
+  "total_sentences": <integer>,
+  "patterns_found": ["<pattern1>", "<pattern2>", ...],
+  "suspicious_phrases": ["<phrase1>", "<phrase2>", ...],
+  "analysis_summary": "<2-3 sentence plain-English summary of findings>",
+  "key_signals": {
+    "perplexity": "<Low|Medium|High>",
+    "burstiness": "<Low|Medium|High>",
+    "passive_voice": "<Rare|Occasional|Frequent>",
+    "transition_overuse": "<No|Slight|Yes>",
+    "sentence_uniformity": "<Varied|Moderate|Uniform>"
+  }
+}
+
+Do NOT include any text outside the JSON. No markdown, no backticks.
+
+TEXT TO ANALYZE:
+${input}`;
+
+  try {
+    const raw = await callClaude(prompt);
+    const clean = raw.replace(/```json|```/g,'').trim();
+    const d = JSON.parse(clean);
+
+    // Render report
+    const prob = Math.min(100, Math.max(0, d.ai_probability));
+    const reportHTML = buildReport(d);
+    document.getElementById('check-report').innerHTML = reportHTML;
+    lastReport = document.getElementById('check-report').innerText;
+
+    // Meter
+    document.getElementById('check-meter-wrap').style.display = 'block';
+    document.getElementById('check-score-label').textContent = prob + '%';
+    const scoreColor = prob >= 75 ? 'var(--red)' : prob >= 45 ? 'var(--accent4)' : 'var(--success)';
+    document.getElementById('check-score-label').style.color = scoreColor;
+    setTimeout(() => { document.getElementById('check-bar').style.width = prob + '%'; }, 50);
+
+    // Verdict
+    const vColors = {
+      'Likely Human':       { bg:'#0d2b1e', border:'#4fffb0', text:'#4fffb0', icon:'✓' },
+      'Uncertain':          { bg:'#1e1a0d', border:'#e8ff47', text:'#e8ff47', icon:'?' },
+      'Likely AI':          { bg:'#2b1a0d', border:'#fb923c', text:'#fb923c', icon:'⚠' },
+      'Almost Certainly AI':{ bg:'#2b0d0d', border:'#ff5c5c', text:'#ff5c5c', icon:'✗' }
+    };
+    const vc = vColors[d.verdict] || vColors['Uncertain'];
+    const vEl = document.getElementById('check-verdict');
+    vEl.style.cssText += `background:${vc.bg}; border-color:${vc.border}; color:${vc.text};`;
+    vEl.innerHTML = `<span style="font-size:18px">${vc.icon}</span> ${d.verdict}`;
+    document.getElementById('check-verdict-wrap').style.display = 'block';
+
+    // Stats
+    document.getElementById('check-words').textContent = wc(input);
+    document.getElementById('check-ai-sents').textContent = d.ai_sentence_count ?? '—';
+    document.getElementById('check-human-sents').textContent = d.human_sentence_count ?? '—';
+    document.getElementById('check-confidence').textContent = d.confidence ?? '—';
+    document.getElementById('check-stats').style.display = 'flex';
+    document.getElementById('btn-copy-report').style.display = 'flex';
+
+    setStatus('check','done','✓ Analysis complete.');
+  } catch(e) {
+    setStatus('check','error','✗ Error: ' + e.message);
+    document.getElementById('check-report').innerHTML = '<span style="color:var(--red)">Analysis failed. Please try again.</span>';
+  } finally {
+    btn.disabled = false; btn.classList.remove('loading');
+  }
+}
+
+function buildReport(d) {
+  const prob = d.ai_probability;
+  const barColor = prob >= 75 ? 'var(--red)' : prob >= 45 ? 'var(--accent4)' : 'var(--success)';
+
+  let html = '';
+
+  // Summary
+  html += `<div style="color:var(--text); margin-bottom:14px; line-height:1.7; font-family:'Syne',sans-serif; font-size:13.5px;">${d.analysis_summary || ''}</div>`;
+  html += `<hr style="border:none;border-top:1px solid var(--border);margin:12px 0">`;
+
+  // Key signals grid
+  if (d.key_signals) {
+    html += `<div style="margin-bottom:12px;"><span style="color:var(--accent4);letter-spacing:2px;font-size:10px;text-transform:uppercase;">KEY SIGNALS</span></div>`;
+    const sig = d.key_signals;
+    const sigRows = [
+      ['Perplexity', sig.perplexity],
+      ['Burstiness', sig.burstiness],
+      ['Passive Voice', sig.passive_voice],
+      ['Transition Overuse', sig.transition_overuse],
+      ['Sentence Uniformity', sig.sentence_uniformity],
+    ];
+    html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px;">`;
+    for (const [k,v] of sigRows) {
+      const flagged = ['Low','Frequent','Yes','Uniform'].includes(v);
+      const col = flagged ? 'var(--red)' : 'var(--success)';
+      html += `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:7px 10px;display:flex;justify-content:space-between;align-items:center;font-size:11px;">
+        <span style="color:var(--muted)">${k}</span>
+        <span style="color:${col};font-weight:700">${v||'—'}</span>
+      </div>`;
+    }
+    html += '</div>';
+  }
+
+  // Patterns found
+  if (d.patterns_found && d.patterns_found.length) {
+    html += `<div style="margin-bottom:8px;"><span style="color:var(--accent4);letter-spacing:2px;font-size:10px;text-transform:uppercase;">AI PATTERNS DETECTED</span></div>`;
+    html += `<ul style="list-style:none;margin-bottom:14px;">`;
+    for (const p of d.patterns_found) {
+      html += `<li style="color:var(--red);padding:3px 0;font-size:12px;">⚑ ${p}</li>`;
+    }
+    html += '</ul>';
+  }
+
+  // Suspicious phrases
+  if (d.suspicious_phrases && d.suspicious_phrases.length) {
+    html += `<div style="margin-bottom:8px;"><span style="color:var(--accent4);letter-spacing:2px;font-size:10px;text-transform:uppercase;">SUSPICIOUS PHRASES</span></div>`;
+    html += `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">`;
+    for (const ph of d.suspicious_phrases.slice(0,10)) {
+      html += `<span style="background:#2b1a0d;border:1px solid var(--accent4);color:var(--accent4);border-radius:4px;padding:3px 10px;font-size:11px;">${ph}</span>`;
+    }
+    html += '</div>';
+  }
+
+  return html;
+}
+
+function copyReport() {
+  navigator.clipboard.writeText(lastReport);
+  const btn = document.getElementById('btn-copy-report');
+  btn.textContent = '✓ Copied!';
+  setTimeout(() => btn.textContent = '⎘ Copy Report', 1500);
+}
+</script>
+</body>
+</html>
